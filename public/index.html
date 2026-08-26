@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>随身空间在线系统</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0;font-family:system-ui}
+    body{padding:15px;max-width:600px;margin:0 auto;background:#f9f9f9}
+    .tab-group{display:flex;gap:8px;margin:15px 0;flex-wrap:wrap}
+    .tab{padding:10px 14px;background:#eee;border-radius:6px;cursor:pointer;font-size:14px}
+    .tab.active{background:#2563eb;color:#fff}
+    .panel{border:1px solid #ddd;padding:15px;border-radius:8px;margin-bottom:15px;display:none;background:#fff}
+    .panel.active{display:block}
+    input{width:100%;padding:12px;margin:8px 0;border:1px solid #ccc;border-radius:6px;font-size:14px}
+    button{width:100%;padding:12px;background:#2563eb;color:white;border:none;border-radius:6px;margin-top:8px;font-size:14px}
+    .item{margin:6px 0;padding:10px;background:#f5f5f5;border-radius:6px;font-size:14px}
+    h3,h4{margin:10px 0;color:#333}
+  </style>
+</head>
+<body>
+  <h3>随身空间在线版</h3>
+  <input type="text" id="username" placeholder="输入你的玩家昵称">
+  <button onclick="login()">进入空间</button>
+
+  <div class="tab-group" id="tabs" style="display:none">
+    <div class="tab active" onclick="switchTab('mySpace')">我的空间</div>
+    <div class="tab" onclick="switchTab('gift')">道具赠送</div>
+    <div class="tab" onclick="switchTab('curse')">诅咒天赋</div>
+    <div class="tab" onclick="switchTab('root')" id="rootTab" style="display:none">源初管控</div>
+  </div>
+
+  <div id="mySpace" class="panel active">
+    <h4>我的道具库</h4>
+    <div id="propsList"></div>
+    <h4>携带槽位</h4>
+    <div id="carrySlot"></div>
+    <h4>已审核天赋</h4>
+    <div id="talentList"></div>
+  </div>
+
+  <div id="gift" class="panel">
+    <h4>提交道具赠送申请</h4>
+    <input type="text" id="receiver" placeholder="对方玩家昵称">
+    <input type="text" id="giftProp" placeholder="要赠送的道具名称">
+    <button onclick="applyGift()">提交申请</button>
+  </div>
+
+  <div id="curse" class="panel">
+    <h4>提交诅咒天赋（待审核）</h4>
+    <input type="text" id="curseName" placeholder="诅咒名称">
+    <button onclick="submitCurse()">提交审核</button>
+    <h4>待审核诅咒列表</h4>
+    <div id="cursePending"></div>
+  </div>
+
+  <div id="root" class="panel">
+    <input type="text" id="rootKey" placeholder="输入源初密钥">
+    <button onclick="checkRoot()">验证管理员权限</button>
+    <div id="rootPlayerList" style="margin-top:10px"></div>
+  </div>
+
+<script>
+let currentUser = '';
+const BASE_URL = '';
+
+async function login(){
+  const name = document.getElementById('username').value.trim();
+  if(!name) return alert('请输入昵称');
+  const res = await fetch(`${BASE_URL}/api/player/login`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name})
+  });
+  currentUser = name;
+  document.getElementById('tabs').style.display='flex';
+  loadMyData();
+}
+
+async function loadMyData(){
+  const res = await fetch(`${BASE_URL}/api/player/data/${currentUser}`);
+  const data = await res.json();
+  const props = JSON.parse(data.props||'[]');
+  const carry = JSON.parse(data.carrySlot||'[]');
+  const talent = JSON.parse(data.talentList||'[]');
+  const pendingCurse = JSON.parse(data.cursePending||'[]');
+
+  document.getElementById('propsList').innerHTML = props.map(p=>`<div class="item">${p}</div>`).join('');
+  document.getElementById('carrySlot').innerHTML = carry.map(c=>`<div class="item">${c}</div>`).join('');
+  document.getElementById('talentList').innerHTML = talent.map(t=>`<div class="item">${t}</div>`).join('');
+  document.getElementById('cursePending').innerHTML = pendingCurse.map(c=>`<div class="item">${c}</div>`).join('');
+}
+
+function switchTab(id){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  event.target.classList.add('active');
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  loadMyData();
+}
+
+async function applyGift(){
+  const receiver = document.getElementById('receiver').value.trim();
+  const prop = document.getElementById('giftProp').value.trim();
+  if(!receiver||!prop) return alert('请填写完整信息');
+  await fetch(`${BASE_URL}/api/gift/apply`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({sender:currentUser,receiver,prop})
+  });
+  alert('赠送申请已提交，等待源初管理员审核');
+}
+
+async function submitCurse(){
+  const curse = document.getElementById('curseName').value.trim();
+  if(!curse) return alert('请输入诅咒名称');
+  await fetch(`${BASE_URL}/api/curse/submit`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name:currentUser,curse})
+  });
+  alert('诅咒已提交待审核，审核通过后才会显示在天赋栏');
+}
+
+async function checkRoot(){
+  const key = document.getElementById('rootKey').value.trim();
+  if(key!=='02297'){
+    alert('源初密钥错误');
+    return;
+  }
+  document.getElementById('rootTab').style.display='block';
+  const res = await fetch(`${BASE_URL}/api/root/players?key=${key}`);
+  const players = await res.json();
+  let html = '<h4>全玩家数据管控</h4>';
+  players.forEach(p=>{
+    html += `<div class="item">玩家：${p.name}<br>道具：${p.props}<br>天赋：${p.talentList}</div>`;
+  });
+  document.getElementById('rootPlayerList').innerHTML = html;
+}
+</script>
+</body>
+</html>
