@@ -1,9 +1,0 @@
-{
-"name": "player-space",
-"version": "1.0.0",
-"dependencies": {
-"express": "^4.18.2",
-"sqlite3": "^5.1.6",
-"cors": "^2.8.5"
-  }
-}
